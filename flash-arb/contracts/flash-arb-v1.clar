@@ -1,5 +1,22 @@
-(use-trait ft-trait .sip-010-trait.sip-010-trait)
-(use-trait dex-trait .dex-trait.dex-trait)
+;; Define the SIP-010 Fungible Token trait
+(define-trait sip-010-trait
+    (
+        (transfer (uint principal (optional (buff 32))) (response bool uint))
+        (get-name () (response (string-ascii 32) uint))
+        (get-symbol () (response (string-ascii 32) uint))
+        (get-decimals () (response uint uint))
+        (get-balance (principal) (response uint uint))
+        (get-total-supply () (response uint uint))
+    )
+)
+
+;; Define the DEX trait
+(define-trait dex-trait
+    (
+        (swap (uint principal principal) (response uint uint))
+        (get-pair-details (principal principal) (response {balance-x: uint, balance-y: uint} uint))
+    )
+)
 
 ;; Error codes
 (define-constant ERR-NOT-AUTHORIZED (err u100))
@@ -56,33 +73,34 @@
 
 ;; Core flash loan function
 (define-public (execute-flash-loan
-    (token-principal principal)
+    (token <sip-010-trait>)
     (amount uint)
-    (dex-1 principal)
-    (dex-2 principal)
+    (dex-1 <dex-trait>)
+    (dex-2 <dex-trait>)
     (swap-data (optional (buff 32))))
     (let (
-        (initial-balance (get-pool-balance token-principal))
+        (initial-balance (get-pool-balance (contract-of token)))
         (fee (/ (* amount (var-get fee-rate)) u1000000))
         (repayment-amount (+ amount fee)))
         (begin
             ;; Check contract state and validations
             (asserts! (not (var-get paused)) ERR-PAUSED)
-            (asserts! (is-dex-whitelisted dex-1) ERR-DEX-NOT-WHITELISTED)
-            (asserts! (is-dex-whitelisted dex-2) ERR-DEX-NOT-WHITELISTED)
-            (asserts! (is-token-whitelisted token-principal) ERR-TOKEN-NOT-WHITELISTED)
+            (asserts! (is-dex-whitelisted (contract-of dex-1)) ERR-DEX-NOT-WHITELISTED)
+            (asserts! (is-dex-whitelisted (contract-of dex-2)) ERR-DEX-NOT-WHITELISTED)
+            (asserts! (is-token-whitelisted (contract-of token)) ERR-TOKEN-NOT-WHITELISTED)
             
             ;; Transfer flash loan amount to user
-            (try! (contract-call? token-principal transfer amount tx-sender (some "flash-loan")))
+            (try! (contract-call? token transfer amount tx-sender (some 0x666c6173682d6c6f616e))) ;; "flash-loan" in hex
             
             ;; Execute user's arbitrage logic (placeholder for actual DEX interactions)
             (match swap-data
-                data (print data)
-                (print "No swap data provided"))
+                success (print success)
+                ;; If no data provided, print an empty buffer
+                (print 0x))
             
             ;; Verify repayment
             (asserts! 
-                (>= (- (get-pool-balance token-principal) initial-balance) repayment-amount)
+                (>= (- (get-pool-balance (contract-of token)) initial-balance) repayment-amount)
                 ERR-INSUFFICIENT-REPAYMENT)
             
             (ok true))))
