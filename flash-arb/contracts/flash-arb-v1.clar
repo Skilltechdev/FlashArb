@@ -24,6 +24,9 @@
 (define-constant ERR-DEX-NOT-WHITELISTED (err u102))
 (define-constant ERR-TOKEN-NOT-WHITELISTED (err u103))
 (define-constant ERR-INSUFFICIENT-REPAYMENT (err u104))
+(define-constant ERR-INVALID-FEE-RATE (err u105))
+(define-constant ERR-ALREADY-WHITELISTED (err u106))
+(define-constant MAX-FEE-RATE u100000) ;; 10% maximum fee rate
 
 ;; Data variables
 (define-data-var contract-owner principal tx-sender)
@@ -50,6 +53,8 @@
 (define-public (set-fee-rate (new-rate uint))
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
+        ;; Check that new rate is within acceptable bounds (0-10%)
+        (asserts! (<= new-rate MAX-FEE-RATE) ERR-INVALID-FEE-RATE)
         (var-set fee-rate new-rate)
         (ok true)))
 
@@ -62,12 +67,16 @@
 (define-public (whitelist-dex (dex principal))
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
+        ;; Check if DEX is already whitelisted
+        (asserts! (not (is-dex-whitelisted dex)) ERR-ALREADY-WHITELISTED)
         (map-set whitelisted-dexes dex true)
         (ok true)))
 
 (define-public (whitelist-token (token principal))
     (begin
         (asserts! (is-contract-owner) ERR-NOT-AUTHORIZED)
+        ;; Check if token is already whitelisted
+        (asserts! (not (is-token-whitelisted token)) ERR-ALREADY-WHITELISTED)
         (map-set whitelisted-tokens token true)
         (ok true)))
 
